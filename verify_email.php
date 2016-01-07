@@ -6,16 +6,22 @@ $address = $_REQUEST['email'];
 function verify_email($address, &$error) {
 	$G5_SERVER_TIME = time();
 
-	$WAIT_SECOND = 3; // ?ÃÊ ±â´Ù¸²
+	$WAIT_SECOND = 3; // ?ì´ˆ ê¸°ë‹¤ë¦¼
 
 	list($user, $domain) = explode("@", $address);
 
+	$test = dns_get_record($domain);
+	$_cnt = count($test);
+	if(!$_cnt) {
+		$error = "ë“±ë¡ë˜ì§€ ì•Šì€ ë„ë©”ì¸ì£¼ì†Œì…ë‹ˆë‹¤.";
+		return false;
+	}
 
-	// µµ¸ŞÀÎ¿¡ ¸ŞÀÏ ±³È¯±â°¡ Á¸ÀçÇÏ´ÂÁö °Ë»ç
+	// ë„ë©”ì¸ì— ë©”ì¼ êµí™˜ê¸°ê°€ ì¡´ì¬í•˜ëŠ”ì§€ ê²€ì‚¬
 	if (checkdnsrr($domain, "MX")) {
-		// ¸ŞÀÏ ±³È¯±â ·¹ÄÚµåµéÀ» ¾ò´Â´Ù
+		// ë©”ì¼ êµí™˜ê¸° ë ˆì½”ë“œë“¤ì„ ì–»ëŠ”ë‹¤
 		if (!getmxrr($domain, $mxhost, $mxweight)) {
-			$error = '¸ŞÀÏ ±³È¯±â¸¦ È¸¼öÇÒ ¼ö ¾øÀ½';
+			$error = 'ë©”ì¼ êµí™˜ê¸°ë¥¼ íšŒìˆ˜í•  ìˆ˜ ì—†ìŒ';
 			return false;
 		} else {
 			$_cnt = count($mxhost);
@@ -25,33 +31,35 @@ function verify_email($address, &$error) {
 			}
 		}
 	} else {
-		// ¸ŞÀÏ ±³È¯±â°¡ ¾øÀ¸¸é, µµ¸ŞÀÎ ÀÚÃ¼°¡ ÆíÁö¸¦ ¹Ş´Â °ÍÀ¸·Î °£ÁÖ
+		// ë©”ì¼ êµí™˜ê¸°ê°€ ì—†ìœ¼ë©´, ë„ë©”ì¸ ìì²´ê°€ í¸ì§€ë¥¼ ë°›ëŠ” ê²ƒìœ¼ë¡œ ê°„ì£¼
 		$mxhost[] = $domain;
 		$mxweight[] = 1;
 	}
 
-	// ¸ŞÀÏ ±³È¯±â È£½ºÆ®ÀÇ ¹è¿­À» ¸¸µç´Ù.
+	// ë©”ì¼ êµí™˜ê¸° í˜¸ìŠ¤íŠ¸ì˜ ë°°ì—´ì„ ë§Œë“ ë‹¤.
 	for ($i=0; $i<count($mxhost); $i++)
 		$weighted_host[$i] = $mxhost[$i];
 	//@ksort($weighted_host);
 
-	// °¢ È£½ºÆ®¸¦ °Ë»ç
+	// ê° í˜¸ìŠ¤íŠ¸ë¥¼ ê²€ì‚¬
 	foreach($weighted_host as $host) {
-		// È£½ºÆ®ÀÇ SMTP Æ÷Æ®¿¡ ¿¬°á
+		echo $host;
+		// í˜¸ìŠ¤íŠ¸ì˜ SMTP í¬íŠ¸ì— ì—°ê²°
 		if (!($fp = @fsockopen($host, 25))) continue;
 
-		// 220 ¸Ş¼¼ÁöµéÀº °Ç³Ê¶Ü
-		// 3ÃÊ°¡ Áö³ªµµ ÀÀ´äÀÌ ¾øÀ¸¸é Æ÷±â
+		echo $fp;exit;
+		// 220 ë©”ì„¸ì§€ë“¤ì€ ê±´ë„ˆëœ€
+		// 3ì´ˆê°€ ì§€ë‚˜ë„ ì‘ë‹µì´ ì—†ìœ¼ë©´ í¬ê¸°
 		socket_set_blocking($fp, false);
 		$stoptime = $G5_SERVER_TIME + $WAIT_SECOND;
 		$gotresponse = false;
 
 		while (true) {
-			// ¸ŞÀÏ¼­¹ö·ÎºÎÅÍ ÇÑÁÙ ¾òÀ½
+			// ë©”ì¼ì„œë²„ë¡œë¶€í„° í•œì¤„ ì–»ìŒ
 			$line = fgets($fp, 1024);
 
 			if (substr($line, 0, 3) == '220') {
-				// Å¸ÀÌ¸Ó¸¦ ÃÊ±âÈ­
+				// íƒ€ì´ë¨¸ë¥¼ ì´ˆê¸°í™”
 				$stoptime = $G5_SERVER_TIME + $WAIT_SECOND;
 				$gotresponse = true;
 			} else if ($line == '' && $gotresponse)
@@ -60,59 +68,60 @@ function verify_email($address, &$error) {
 				break;
 		}
 
-		// ÀÌ È£½ºÆ®´Â ÀÀ´äÀÌ ¾øÀ½. ´ÙÀ½ È£½ºÆ®·Î ³Ñ¾î°£´Ù
+		// ì´ í˜¸ìŠ¤íŠ¸ëŠ” ì‘ë‹µì´ ì—†ìŒ. ë‹¤ìŒ í˜¸ìŠ¤íŠ¸ë¡œ ë„˜ì–´ê°„ë‹¤
 		if (!$gotresponse) continue;
 
 		socket_set_blocking($fp, true);
 
-		// SMTP ¼­¹ö¿ÍÀÇ ´ëÈ­¸¦ ½ÃÀÛ
+		// SMTP ì„œë²„ì™€ì˜ ëŒ€í™”ë¥¼ ì‹œì‘
 		fputs($fp, "HELO {$_SERVER['SERVER_NAME']}\r\n");
 		echo "HELO {$_SERVER['SERVER_NAME']}\r\n";
 		fgets($fp, 1024);
 
-		// FromÀ» ¼³Á¤
+		// Fromì„ ì„¤ì •
 		fputs($fp, "MAIL FROM: <info@$domain>\r\n");
 		//echo "MAIL FROM: <info@$domain>\r\n";
 		fgets($fp, 1024);
 
-		// ÁÖ¼Ò¸¦ ½Ãµµ
+		// ì£¼ì†Œë¥¼ ì‹œë„
 		fputs($fp, "RCPT TO: <$address>\r\n");
 		//echo "RCPT TO: <$address>\r\n";
 		$line = fgets($fp, 1024);
 
-		// ¿¬°áÀ» ´İÀ½
+		// ì—°ê²°ì„ ë‹«ìŒ
 		fputs($fp, "QUIT\r\n");
 		fclose($fp);
 
 		if (substr($line, 0, 3) != '250') {
-			// SMTP ¼­¹ö°¡ ÀÌ ÁÖ¼Ò¸¦ ÀÎ½ÄÇÏÁö ¸øÇÏ¹Ç·Î Àß¸øµÈ ÁÖ¼ÒÀÓ
+			// SMTP ì„œë²„ê°€ ì´ ì£¼ì†Œë¥¼ ì¸ì‹í•˜ì§€ ëª»í•˜ë¯€ë¡œ ì˜ëª»ëœ ì£¼ì†Œì„
 			$error = $line;
 			return false;
-		} else
-			// ÁÖ¼Ò¸¦ ÀÎ½ÄÇßÀ½
+		} else {
+			// ì£¼ì†Œë¥¼ ì¸ì‹í–ˆìŒ
 			return true;
+		}
 	}
 
-	$error = '¸ŞÀÏ ±³È¯±â¿¡ µµ´ŞÇÏÁö ¸øÇÏ¿´½À´Ï´Ù.';
+	$error = 'ë©”ì¼ êµí™˜ê¸°ì— ë„ë‹¬í•˜ì§€ ëª»í•˜ì˜€ìŠµë‹ˆë‹¤.';
 	return false;
 }
 
 if($mode == "verify") {
 	$ret = verify_email($address, &$error);
 	echo "<meta charset=\"euc-kr\">";
-	if($ret) echo "<script>alert('ÀÌ¸ŞÀÏÁÖ¼Ò °Ë»ç ¼º°ø');</script>";
-	else echo "<script>alert('ÀÌ¸ŞÀÏÁÖ¼Ò °Ë»ç ½ÇÆĞ\\n\\n$error');</script>";
-	echo "<script>location.href='verify_email.php';</script>";
+	if($ret) echo "<script>alert('ì´ë©”ì¼ì£¼ì†Œ ê²€ì‚¬ ì„±ê³µ');</script>";
+	else echo "<script>alert('ì´ë©”ì¼ì£¼ì†Œ ê²€ì‚¬ ì‹¤íŒ¨\\n\\n$error');</script>";
+	echo "<script>location.href='$PHP_SELF';</script>";
 	exit;
 }
 
 ?>
 
-<meta charset="euc-kr">
-<title>ÀÌ¸ŞÀÏÁÖ¼Ò °Ë»ç ÇÁ·Î±×·¥</title>
+<meta charset="utf-8">
+<title>ì´ë©”ì¼ì£¼ì†Œ ê²€ì‚¬ í”„ë¡œê·¸ë¨</title>
 <form method="post">
 <input type="hidden" name="mode" value="verify">
-ÀÌ¸ŞÀÏÁÖ¼Ò °Ë»ç ÇÁ·Î±×·¥<p>
-ÀÌ¸ŞÀÏÁÖ¼Ò <input type="text" name="email" size="20" maxlength="40" required autofocus> 
-<input type="submit" value="½ÇÇà">
+ì´ë©”ì¼ì£¼ì†Œ ê²€ì‚¬ í”„ë¡œê·¸ë¨<p>
+ì´ë©”ì¼ì£¼ì†Œ <input type="text" name="email" size="20" maxlength="40" required autofocus> 
+<input type="submit" value="ì‹¤í–‰">
 </form>
